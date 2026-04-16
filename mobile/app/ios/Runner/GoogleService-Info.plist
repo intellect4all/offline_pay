@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>API_KEY</key>
+	<string>AIzaSyALioDDep5_vP0Vi7Ru9IKp9UZnh8cWFVE</string>
+	<key>GCM_SENDER_ID</key>
+	<string>546288139277</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.intellect.offlinepay.offlinepayApp</string>
+	<key>PROJECT_ID</key>
+	<string>offlinepay-feb86</string>
+	<key>STORAGE_BUCKET</key>
+	<string>offlinepay-feb86.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:546288139277:ios:ae0a5e96bb5f1d239de944</string>
+</dict>
+</plist>

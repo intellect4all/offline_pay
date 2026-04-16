@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AID filter for the offline-pay HCE service. The AID `F04F464C50415901`
+  spells "OFLPAY\x01" and is shared by `lib/src/transport/nfc_apdu.dart`
+  (see `offlinePayAid`). Category `other` so it does not collide with
+  payment apps registered under `payment`.
+-->
+<host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/nfc_service_description"
+    android:requireDeviceUnlock="false">
+    <aid-group android:description="@string/nfc_aid_group_description"
+        android:category="other">
+        <aid-filter android:name="F04F464C50415901"/>
+    </aid-group>
+</host-apdu-service>

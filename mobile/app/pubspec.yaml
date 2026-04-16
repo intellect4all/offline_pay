@@ -1,0 +1,44 @@
+name: offlinepay_app
+description: Offline-first C2C QR payment app for Nigeria. Single unified Flutter client supporting symmetric sender/receiver roles on the same device + session.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+  flutter: '>=3.19.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  offlinepay_core:
+    path: ../packages/core
+  offlinepay_api:
+    path: ../packages/offlinepay_api
+  sqflite: ^2.3.3
+  flutter_secure_storage: ^9.0.0
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^7.2.0
+  flutter_bloc: ^8.1.6
+  bloc: ^8.1.4
+  get_it: ^7.7.0
+  equatable: ^2.0.5
+  connectivity_plus: ^6.0.3
+  path_provider: ^2.1.4
+  path: ^1.9.0
+  dio: ^5.7.0
+  built_collection: ^5.1.1
+  cryptography: ^2.7.0
+  local_auth: ^2.3.0
+  firebase_core: ^3.6.0
+  firebase_messaging: ^15.1.3
+  permission_handler: ^11.3.1
+  shared_preferences: ^2.3.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  sqflite_common_ffi: ^2.3.0
+
+flutter:
+  uses-material-design: true
