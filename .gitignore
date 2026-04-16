@@ -1,0 +1,48 @@
+.env
+.env.local
+*.log
+
+# Go
+backend/bin/
+backend/tmp/
+vendor/
+backend/bff
+backend/adminapi
+backend/transferworker
+backend/opsctl
+backend/opsim
+backend/rotate_sealedbox_key
+backend/rotate_realm_key
+
+# Flutter / Dart
+mobile/**/.dart_tool/
+mobile/**/build/
+mobile/**/.flutter-plugins
+mobile/**/.flutter-plugins-dependencies
+mobile/**/.packages
+mobile/**/.pub-cache/
+mobile/**/.pub/
+mobile/**/ios/Pods/
+mobile/**/android/.gradle/
+mobile/**/android/local.properties
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+
+# Claude agent config
+.claude/
+
+# Internal-only whitepaper (not for public repo)
+docs/WHITEPAPER.md
+
+# Dev PKI (regenerate with `make cert-dev`)
+backend/ops/certs/*.pem
+backend/ops/certs/*.key
+backend/ops/certs/*.srl
+
+CLAUDE.md
