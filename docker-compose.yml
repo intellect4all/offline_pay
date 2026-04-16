@@ -1,0 +1,256 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: offlinepay
+      POSTGRES_PASSWORD: offlinepay
+      POSTGRES_DB: offlinepay
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U offlinepay"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    networks:
+      - offlinepay
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    networks:
+      - offlinepay
+
+  nats:
+    image: nats:2.10-alpine
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    command: ["-js"]
+    networks:
+      - offlinepay
+
+  adminapi:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.adminapi
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      OFFLINEPAY_ENV: local
+      OFFLINEPAY_LOG_FORMAT: json
+      OFFLINEPAY_LOG_LEVEL: info
+      DB_URL: postgres://offlinepay:offlinepay@postgres:5432/offlinepay?sslmode=disable
+      ADMIN_HTTP_ADDR: ":8088"
+      ADMIN_CORS_ORIGIN: "http://localhost:3000"
+      ADMIN_JWT_SECRET: "dev-insecure-adminapi-secret-change-me-0123456789"
+      MIGRATE_ON_BOOT: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "tempo:4317"
+      OTEL_EXPORTER_OTLP_INSECURE: "true"
+      OTEL_SERVICE_NAME: "offlinepay-adminapi"
+      OTEL_SERVICE_VERSION: "0.1.0"
+    ports:
+      - "8088:8088"
+    networks:
+      - offlinepay
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    depends_on:
+      - adminapi
+    environment:
+      NUXT_ADMIN_API_URL: http://adminapi:8088
+      NUXT_PUBLIC_APP_NAME: "OfflinePay Backoffice"
+    ports:
+      - "3000:3000"
+    networks:
+      - offlinepay
+
+  bff:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.bff
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      OFFLINEPAY_ENV: local
+      OFFLINEPAY_LOG_FORMAT: json
+      OFFLINEPAY_LOG_LEVEL: info
+      BFF_HTTP_ADDR: ":8082"
+      DB_URL: postgres://offlinepay:offlinepay@postgres:5432/offlinepay?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      BFF_JWT_SECRET: "dev-insecure-bff-secret-change-me-0123456789"
+      MIGRATE_ON_BOOT: "true"
+      BFF_ENABLE_DEV_TOPUP: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "tempo:4317"
+      OTEL_EXPORTER_OTLP_INSECURE: "true"
+      OTEL_SERVICE_NAME: "offlinepay-bff"
+      OTEL_SERVICE_VERSION: "0.1.0"
+    ports:
+      - "8082:8082"
+    networks:
+      - offlinepay
+
+  transferworker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.transferworker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    environment:
+      OFFLINEPAY_ENV: local
+      OFFLINEPAY_LOG_FORMAT: json
+      OFFLINEPAY_LOG_LEVEL: info
+      DB_URL: postgres://offlinepay:offlinepay@postgres:5432/offlinepay?sslmode=disable
+      NATS_URL: nats://nats:4222
+      WORKER_METRICS_ADDR: ":9102"
+      # FCM credentials (optional) — empty values keep the worker on the
+      # LogSender fallback. Export FCM_PROJECT_ID and FCM_SERVICE_ACCOUNT_JSON
+      # in your shell (or in `.env`) before `docker compose up`. The JSON can
+      # be raw, base64-encoded, or a path *inside the container* — base64 is
+      # the friction-free choice for compose.
+      FCM_PROJECT_ID: ${FCM_PROJECT_ID:-}
+      FCM_SERVICE_ACCOUNT_JSON: ${FCM_SERVICE_ACCOUNT_JSON:-}
+      OTEL_EXPORTER_OTLP_ENDPOINT: "tempo:4317"
+      OTEL_EXPORTER_OTLP_INSECURE: "true"
+      OTEL_SERVICE_NAME: "offlinepay-transferworker"
+      OTEL_SERVICE_VERSION: "0.1.0"
+    ports:
+      - "9102:9102"
+    networks:
+      - offlinepay
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    depends_on:
+      bff:
+        condition: service_started
+      transferworker:
+        condition: service_started
+    volumes:
+      - ./ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./ops/alertmanager/rules:/etc/prometheus/rules:ro
+      - prom_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    networks:
+      - offlinepay
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    volumes:
+      - ./ops/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - am_data:/alertmanager
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    ports:
+      - "9093:9093"
+    networks:
+      - offlinepay
+
+  loki:
+    image: grafana/loki:3.2.0
+    command: -config.file=/etc/loki/loki.yml
+    volumes:
+      - ./ops/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+    networks:
+      - offlinepay
+
+  promtail:
+    image: grafana/promtail:3.2.0
+    command: -config.file=/etc/promtail/promtail.yml
+    depends_on:
+      - loki
+    volumes:
+      - ./ops/promtail/promtail.yml:/etc/promtail/promtail.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - offlinepay
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    volumes:
+      - ./ops/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "3200:3200"
+      - "4317:4317"
+      - "4318:4318"
+    networks:
+      - offlinepay
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./ops/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    networks:
+      - offlinepay
+
+  metabase:
+    image: metabase/metabase:v0.50.20
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      MB_DB_FILE: /metabase-data/metabase.db
+      MB_SITE_NAME: "OfflinePay Metabase"
+    volumes:
+      - metabase_data:/metabase-data
+    ports:
+      - "3002:3000"
+    networks:
+      - offlinepay
+
+networks:
+  offlinepay:
+    name: offlinepay
+    driver: bridge
+
+volumes:
+  pgdata:
+  prom_data:
+  am_data:
+  grafana_data:
+  loki_data:
+  tempo_data:
+  metabase_data:
