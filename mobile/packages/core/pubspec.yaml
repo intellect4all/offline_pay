@@ -1,0 +1,17 @@
+name: offlinepay_core
+description: Shared Dart core for the offline_pay C2C payment app — crypto, canonical encoding, QR framing, and token models. Byte-for-byte compatible with the Go backend reference.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: '>=3.6.0 <4.0.0'
+
+dependencies:
+  cryptography: ^2.7.0
+  pointycastle: ^3.9.1
+  convert: ^3.1.1
+  collection: ^1.18.0
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^4.0.0
