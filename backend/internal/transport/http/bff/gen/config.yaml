@@ -1,0 +1,7 @@
+package: bffgen
+output: internal/transport/http/bff/gen/bff.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+  embedded-spec: true
