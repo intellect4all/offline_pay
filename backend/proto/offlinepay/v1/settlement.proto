@@ -1,0 +1,122 @@
+// SettlementService implements the two-phase settlement protocol plus the
+// unified C2C reconciliation surface. All RPCs are user-scoped; the same
+// user may act as a receiver (SubmitClaim, GossipUpload) and as a payer
+// (SyncUser covers both sides).
+syntax = "proto3";
+
+package offlinepay.v1;
+
+import "google/protobuf/timestamp.proto";
+import "offlinepay/v1/common.proto";
+
+option go_package = "github.com/intellect/offlinepay/internal/transport/grpc/gen/offlinepay/v1;offlinepayv1";
+
+service SettlementService {
+  // SubmitClaim is Phase 4a: the caller (receiver role) submits a batch of
+  // payment tokens scanned offline. Server verifies signatures, dedupes by
+  // (payer_id, sequence_number), and credits receiving_pending.
+  rpc SubmitClaim(SubmitClaimRequest) returns (SubmitClaimResponse);
+
+  // GetBatchReceipt re-fetches the receipt for a previously submitted batch.
+  rpc GetBatchReceipt(GetBatchReceiptRequest) returns (GetBatchReceiptResponse);
+
+  // SyncUser returns both payer-side and receiver-side settled transactions
+  // so the caller can reconcile its local log. Disputed entries flagged by
+  // the client are carried back for review.
+  rpc SyncUser(SyncUserRequest) returns (SyncUserResponse);
+
+  // GossipUpload accepts encrypted gossip blobs carried by the caller. The
+  // server decrypts with its X25519 private key and routes each blob into
+  // the same settlement path as a direct claim.
+  rpc GossipUpload(GossipUploadRequest) returns (GossipUploadResponse);
+}
+
+message SubmitClaimRequest {
+  // receiver_user_id is the caller acting in receiver role.
+  string receiver_user_id = 1;
+  // tokens is the batch of scanned payment tokens.
+  repeated PaymentToken tokens = 2;
+  // The ceiling token that backs each payment, keyed by ceiling_token_id.
+  // Sent so the server can match bank signatures without a round trip even
+  // on rarely-seen ceilings.
+  repeated CeilingToken ceilings = 3;
+  // client_batch_id is a client-generated idempotency key (UUID recommended).
+  string client_batch_id = 4;
+  // The PaymentRequest each payment token counter-signs, keyed by the 16-byte
+  // session_nonce embedded in both. Server verifies receiver sig, re-derives
+  // request_hash, and rejects any binding mismatch.
+  repeated PaymentRequest requests = 5;
+}
+
+message SubmitClaimResponse {
+  BatchReceipt receipt = 1;
+}
+
+message GetBatchReceiptRequest {
+  string batch_id = 1;
+  string user_id = 2;
+}
+
+message GetBatchReceiptResponse {
+  BatchReceipt receipt = 1;
+}
+
+message SyncUserRequest {
+  string user_id = 1;
+  // since bounds the returned set; server returns transactions settled at or
+  // after this timestamp. Zero means "everything".
+  google.protobuf.Timestamp since = 2;
+  // disputed lists transaction IDs the client believes are discrepant.
+  repeated string disputed_transaction_ids = 3;
+  // finalize requests that the server also run FinalizeForPayer(user_id)
+  // as part of the sync, saving a round-trip.
+  bool finalize = 4;
+}
+
+message SyncedTransaction {
+  string transaction_id = 1;
+  string payer_id = 2;
+  string payee_id = 3;
+  int64 amount_kobo = 4;
+  int64 settled_amount_kobo = 5;
+  int64 sequence_number = 6;
+  string ceiling_token_id = 7;
+  TransactionStatus status = 8;
+  string rejection_reason = 9;
+  google.protobuf.Timestamp submitted_at = 10;
+  google.protobuf.Timestamp settled_at = 11;
+}
+
+message SyncUserResponse {
+  // payer_side are transactions where user_id == payer_id.
+  repeated SyncedTransaction payer_side = 1;
+  // receiver_side are transactions where user_id == payee_id.
+  repeated SyncedTransaction receiver_side = 2;
+  google.protobuf.Timestamp synced_at = 3;
+  // finalized_count reports payer-side transactions the server observed
+  // in a terminal state *before* this call ran (i.e. already-SETTLED
+  // rows returned in payer_side). In the event-driven model it does not
+  // reflect work this RPC kicked off — see finalize_pending for that.
+  int32 finalized_count = 4;
+  // finalize_pending is true when the caller requested finalize=true and
+  // the server enqueued a settlement-finalize event for them. The actual
+  // ledger move happens asynchronously in the worker; the client should
+  // show an "in progress" hint and refresh on the offline_payment_settled
+  // push or on the next sync cycle.
+  bool finalize_pending = 5;
+}
+
+message GossipUploadRequest {
+  // uploader_user_id is the caller carrying the blobs.
+  string uploader_user_id = 1;
+  repeated GossipBlob blobs = 2;
+}
+
+message GossipUploadResponse {
+  // accepted is the count of blobs the server successfully decrypted and
+  // routed. duplicates is the count rejected by (payer_id, sequence_number)
+  // dedup. invalid is the count that failed decryption or validation.
+  int32 accepted = 1;
+  int32 duplicates = 2;
+  int32 invalid = 3;
+}

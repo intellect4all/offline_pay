@@ -1,0 +1,77 @@
+// WalletService manages each user's main wallet, offline wallet, and the
+// lifecycle of their ceiling token. All RPCs are user-scoped. In the C2C
+// model the same user acts as both sender (FundOffline/RefreshCeiling) and
+// receiver; there is no merchant-specific surface.
+syntax = "proto3";
+
+package offlinepay.v1;
+
+import "google/protobuf/timestamp.proto";
+import "offlinepay/v1/common.proto";
+
+option go_package = "github.com/intellect/offlinepay/internal/transport/grpc/gen/offlinepay/v1;offlinepayv1";
+
+service WalletService {
+  // FundOffline debits the caller's main wallet, places a lien, and issues a
+  // fresh bank-signed CeilingToken authorizing offline spending.
+  rpc FundOffline(FundOfflineRequest) returns (FundOfflineResponse);
+
+  // GetBalances returns all five account balances for the caller.
+  rpc GetBalances(GetBalancesRequest) returns (GetBalancesResponse);
+
+  // MoveToMain revokes the caller's active ceiling (only if no in-flight
+  // unsettled claims) and releases the lien back to the main wallet.
+  rpc MoveToMain(MoveToMainRequest) returns (MoveToMainResponse);
+
+  // RefreshCeiling consumes the remaining balance of the caller's active
+  // ceiling into a new one with the specified new amount and TTL.
+  rpc RefreshCeiling(RefreshCeilingRequest) returns (RefreshCeilingResponse);
+}
+
+message FundOfflineRequest {
+  string user_id = 1;
+  int64 amount_kobo = 2;
+  // ttl_seconds is the requested ceiling validity window from issuance.
+  int64 ttl_seconds = 3;
+  // payer_public_key is the Ed25519 public key the device will sign with.
+  bytes payer_public_key = 4;
+}
+
+message FundOfflineResponse {
+  CeilingToken ceiling = 1;
+  // lien_id is the server-side identifier for the funds held behind the
+  // ceiling. Opaque to the client; useful for debugging/support.
+  string lien_id = 2;
+}
+
+message GetBalancesRequest {
+  string user_id = 1;
+}
+
+message GetBalancesResponse {
+  // balances contains exactly five entries (one per AccountKind != UNSPECIFIED).
+  repeated AccountBalance balances = 1;
+  google.protobuf.Timestamp as_of = 2;
+}
+
+message MoveToMainRequest {
+  string user_id = 1;
+}
+
+message MoveToMainResponse {
+  int64 released_kobo = 1;
+  // new_main_balance_kobo is the caller's main wallet balance after release.
+  int64 new_main_balance_kobo = 2;
+}
+
+message RefreshCeilingRequest {
+  string user_id = 1;
+  int64 new_amount_kobo = 2;
+  int64 ttl_seconds = 3;
+  bytes payer_public_key = 4;
+}
+
+message RefreshCeilingResponse {
+  CeilingToken ceiling = 1;
+  string lien_id = 2;
+}

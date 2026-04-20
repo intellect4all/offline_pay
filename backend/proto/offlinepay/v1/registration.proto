@@ -1,0 +1,137 @@
+// RegistrationService handles device registration, hardware attestation,
+// deactivation, and device-rotation flows. A user has at most one active
+// device at a time in MVP.
+syntax = "proto3";
+
+package offlinepay.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/intellect/offlinepay/internal/transport/grpc/gen/offlinepay/v1;offlinepayv1";
+
+service RegistrationService {
+  // GetAttestationChallenge returns a fresh server-issued nonce for the
+  // calling user. The client embeds this nonce into its Play Integrity /
+  // DeviceCheck attestation blob; the server consumes the nonce exactly
+  // once when RegisterDevice / RotateDevice / RecoverDevice / Attest is
+  // called. Nonces expire after a short TTL.
+  rpc GetAttestationChallenge(GetAttestationChallengeRequest) returns (GetAttestationChallengeResponse);
+  rpc RegisterDevice(RegisterDeviceRequest) returns (RegisterDeviceResponse);
+  rpc Attest(AttestRequest) returns (AttestResponse);
+  rpc Deactivate(DeactivateRequest) returns (DeactivateResponse);
+  rpc RotateDevice(RotateDeviceRequest) returns (RotateDeviceResponse);
+  // RevokeDevice marks an active device as inactive. Intended for "I suspect
+  // my other phone is compromised" — the caller must be authenticated as a
+  // *different* active device on the same user account (enforced by the auth
+  // interceptor + handler). The revoked device's JWTs stop validating on the
+  // next RPC.
+  rpc RevokeDevice(RevokeDeviceRequest) returns (RevokeDeviceResponse);
+  // RecoverDevice provisions a replacement device when the user no longer
+  // has access to their prior device (lost/stolen/reset). Gated by an
+  // out-of-band recovery proof (OTP / KYC re-verify). The stubbed gate in
+  // dev accepts any non-empty proof.
+  rpc RecoverDevice(RecoverDeviceRequest) returns (RecoverDeviceResponse);
+}
+
+message GetAttestationChallengeRequest {
+  string user_id = 1;
+}
+
+message GetAttestationChallengeResponse {
+  bytes nonce = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+message RegisterDeviceRequest {
+  string user_id = 1;
+  // device_public_key is the Ed25519 public key generated in the device's
+  // hardware keystore; matching private key never leaves the HSM.
+  bytes device_public_key = 2;
+  // platform is "android" or "ios".
+  string platform = 3;
+  // attestation_blob is the Play Integrity / DeviceCheck attestation payload.
+  bytes attestation_blob = 4;
+  string app_version = 5;
+  // nonce echoes the server-issued challenge from GetAttestationChallenge.
+  // Consumed exactly once on successful verification.
+  bytes attestation_nonce = 6;
+}
+
+message RegisterDeviceResponse {
+  string device_id = 1;
+  // device_jwt is a short-lived token binding the device_id to attestation;
+  // used to authenticate subsequent RPCs.
+  string device_jwt = 2;
+  google.protobuf.Timestamp registered_at = 3;
+  int32 realm_key_version = 4;
+}
+
+message AttestRequest {
+  string device_id = 1;
+  bytes attestation_blob = 2;
+  // nonce is a server-issued challenge echoed inside attestation_blob.
+  bytes nonce = 3;
+}
+
+message AttestResponse {
+  bool valid = 1;
+  string device_jwt = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  string failure_reason = 4;
+}
+
+message DeactivateRequest {
+  string device_id = 1;
+  string user_id = 2;
+  // reason is an operator- or user-supplied free-form reason code.
+  string reason = 3;
+}
+
+message DeactivateResponse {
+  google.protobuf.Timestamp deactivated_at = 1;
+}
+
+message RotateDeviceRequest {
+  string user_id = 1;
+  // old_device_id is the device being replaced.
+  string old_device_id = 2;
+  bytes new_device_public_key = 3;
+  string platform = 4;
+  bytes attestation_blob = 5;
+  string app_version = 6;
+}
+
+message RotateDeviceResponse {
+  string new_device_id = 1;
+  string device_jwt = 2;
+  google.protobuf.Timestamp rotated_at = 3;
+  int32 realm_key_version = 4;
+}
+
+message RevokeDeviceRequest {
+  // device_id being revoked. Auth context must carry a different active
+  // device belonging to the same user.
+  string device_id = 1;
+  string reason = 2;
+}
+
+message RevokeDeviceResponse {
+  google.protobuf.Timestamp revoked_at = 1;
+}
+
+message RecoverDeviceRequest {
+  string user_id = 1;
+  // recovery_proof is an opaque blob validated by the RecoveryGate — an OTP
+  // response, KYC re-verify voucher, etc. Dev gate accepts any non-empty.
+  bytes recovery_proof = 2;
+  bytes new_device_public_key = 3;
+  string platform = 4;
+  bytes attestation_blob = 5;
+  string app_version = 6;
+}
+
+message RecoverDeviceResponse {
+  string new_device_id = 1;
+  google.protobuf.Timestamp recovered_at = 2;
+  int32 realm_key_version = 3;
+}

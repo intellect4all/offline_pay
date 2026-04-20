@@ -1,0 +1,82 @@
+// KeysService distributes the three key materials clients need to operate:
+//   * Bank Ed25519 public keys (to verify ceiling tokens).
+//   * Realm AES-256 key (to encrypt/decrypt QR payloads).
+//   * Server X25519 public key (to seal gossip blobs for the server).
+syntax = "proto3";
+
+package offlinepay.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/intellect/offlinepay/internal/transport/grpc/gen/offlinepay/v1;offlinepayv1";
+
+service KeysService {
+  rpc GetBankPublicKeys(GetBankPublicKeysRequest) returns (GetBankPublicKeysResponse);
+  rpc GetRealmKey(GetRealmKeyRequest) returns (GetRealmKeyResponse);
+  // GetActiveRealmKeys returns every realm-key version still inside its
+  // overlap window — the current key plus any recently-retired predecessors
+  // whose retired_at has not yet elapsed. Clients build a Keyring from
+  // these and attempt decryption in descending version order.
+  rpc GetActiveRealmKeys(GetActiveRealmKeysRequest) returns (GetActiveRealmKeysResponse);
+  rpc GetServerSealedBoxPubkey(GetServerSealedBoxPubkeyRequest) returns (GetServerSealedBoxPubkeyResponse);
+}
+
+message BankPublicKey {
+  string key_id = 1;
+  bytes public_key = 2; // 32-byte Ed25519
+  google.protobuf.Timestamp active_from = 3;
+  google.protobuf.Timestamp retired_at = 4; // zero if still active
+}
+
+message GetBankPublicKeysRequest {
+  // If non-empty, return only keys with these IDs. Otherwise return all keys
+  // currently active or within the rotation-overlap window.
+  repeated string key_ids = 1;
+}
+
+message GetBankPublicKeysResponse {
+  repeated BankPublicKey keys = 1;
+}
+
+message GetRealmKeyRequest {
+  // version is the realm key version the client is requesting. Zero means
+  // "current active version".
+  int32 version = 1;
+  // device_id authenticates the caller's device; the server enforces that
+  // only registered devices can obtain realm keys.
+  string device_id = 2;
+}
+
+message GetRealmKeyResponse {
+  int32 version = 1;
+  bytes key = 2; // 32-byte AES-256 key
+  google.protobuf.Timestamp active_from = 3;
+  google.protobuf.Timestamp expires_at = 4;
+}
+
+message RealmKey {
+  int32 version = 1;
+  bytes key = 2; // 32-byte AES-256 key
+  google.protobuf.Timestamp active_from = 3;
+  google.protobuf.Timestamp retired_at = 4; // zero if still current
+}
+
+message GetActiveRealmKeysRequest {
+  // device_id authenticates the caller; same guardrail as GetRealmKey.
+  string device_id = 1;
+  // limit caps the number of versions returned. Zero means server default (3).
+  int32 limit = 2;
+}
+
+message GetActiveRealmKeysResponse {
+  // keys is ordered newest-first. The first entry is the current key.
+  repeated RealmKey keys = 1;
+}
+
+message GetServerSealedBoxPubkeyRequest {}
+
+message GetServerSealedBoxPubkeyResponse {
+  bytes public_key = 1; // 32-byte X25519
+  string key_id = 2;
+  google.protobuf.Timestamp active_from = 3;
+}

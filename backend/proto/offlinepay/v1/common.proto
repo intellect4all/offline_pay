@@ -1,0 +1,167 @@
+// Shared messages and enums used across offlinepay.v1 services.
+//
+// Field numbers are allocated ONCE and frozen. Do not renumber existing fields.
+// New fields must use unused numbers. Removed fields must be reserved.
+syntax = "proto3";
+
+package offlinepay.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/intellect/offlinepay/internal/transport/grpc/gen/offlinepay/v1;offlinepayv1";
+
+// TransactionStatus mirrors domain.TransactionStatus.
+enum TransactionStatus {
+  TRANSACTION_STATUS_UNSPECIFIED = 0;
+  TRANSACTION_STATUS_QUEUED = 1;
+  TRANSACTION_STATUS_SUBMITTED = 2;
+  TRANSACTION_STATUS_PENDING = 3;
+  TRANSACTION_STATUS_SETTLED = 4;
+  TRANSACTION_STATUS_PARTIALLY_SETTLED = 5;
+  TRANSACTION_STATUS_REJECTED = 6;
+  TRANSACTION_STATUS_EXPIRED = 7;
+}
+
+// CeilingStatus mirrors domain.CeilingStatus.
+enum CeilingStatus {
+  CEILING_STATUS_UNSPECIFIED = 0;
+  CEILING_STATUS_ACTIVE = 1;
+  CEILING_STATUS_EXPIRED = 2;
+  CEILING_STATUS_EXHAUSTED = 3;
+  CEILING_STATUS_REVOKED = 4;
+}
+
+// AccountKind enumerates the per-user account buckets.
+// Value 2 (formerly ACCOUNT_KIND_OFFLINE) is reserved — the offline-wallet
+// float lives in ACCOUNT_KIND_LIEN_HOLDING. See migration 0021.
+// Value 5 (formerly ACCOUNT_KIND_RECEIVING_AVAILABLE) is reserved — settled
+// offline-payment funds land directly in ACCOUNT_KIND_MAIN so receivers can
+// spend them without a manual move.
+enum AccountKind {
+  ACCOUNT_KIND_UNSPECIFIED = 0;
+  ACCOUNT_KIND_MAIN = 1;
+  reserved 2, 5;
+  reserved "ACCOUNT_KIND_OFFLINE", "ACCOUNT_KIND_RECEIVING_AVAILABLE";
+  ACCOUNT_KIND_LIEN_HOLDING = 3;
+  ACCOUNT_KIND_RECEIVING_PENDING = 4;
+}
+
+// SettlementBatchStatus mirrors domain.SettlementBatchStatus.
+enum SettlementBatchStatus {
+  SETTLEMENT_BATCH_STATUS_UNSPECIFIED = 0;
+  SETTLEMENT_BATCH_STATUS_RECEIVED = 1;
+  SETTLEMENT_BATCH_STATUS_PROCESSING = 2;
+  SETTLEMENT_BATCH_STATUS_COMPLETED = 3;
+  SETTLEMENT_BATCH_STATUS_FAILED = 4;
+}
+
+// CeilingToken is the bank-signed authorization for offline spending.
+// Wire form of domain.CeilingToken (sans transient server metadata).
+message CeilingToken {
+  string id = 1;
+  string payer_id = 2;
+  int64 ceiling_amount_kobo = 3;
+  google.protobuf.Timestamp issued_at = 4;
+  google.protobuf.Timestamp expires_at = 5;
+  int64 sequence_start = 6;
+  bytes payer_public_key = 7;
+  string bank_key_id = 8;
+  bytes bank_signature = 9;
+  CeilingStatus status = 10;
+}
+
+// PaymentToken is the payer-signed token for a single offline payment.
+// Wire form of domain.PaymentToken.
+//
+// session_nonce + request_hash bind this token to a specific
+// PaymentRequest issued by the receiver. The server recomputes the hash
+// from the submitted PaymentRequest blob and rejects any mismatch.
+message PaymentToken {
+  string payer_id = 1;
+  string payee_id = 2;
+  int64 amount_kobo = 3;
+  int64 sequence_number = 4;
+  int64 remaining_ceiling_kobo = 5;
+  google.protobuf.Timestamp timestamp = 6;
+  string ceiling_token_id = 7;
+  bytes payer_signature = 8;
+  bytes session_nonce = 9;
+  bytes request_hash = 10;
+}
+
+// DisplayCard is the server-issued identity credential a user embeds in
+// every PaymentRequest they publish. The server signature lets the payer
+// verify that the display_name really belongs to user_id.
+message DisplayCard {
+  string user_id = 1;
+  string display_name = 2;
+  string account_number = 3;
+  google.protobuf.Timestamp issued_at = 4;
+  string bank_key_id = 5;
+  bytes server_signature = 6;
+}
+
+// PaymentRequest is the receiver-issued, receiver-signed invoice the payer
+// scans before signing a PaymentToken. Binds {receiver_id, amount,
+// session_nonce} into a contract the payer counter-signs. Wire form of
+// domain.PaymentRequest.
+//
+// amount_kobo=0 is the "unbound" sentinel — the receiver didn't declare an
+// amount and the payer enters it themselves (P2P fallback); the server
+// skips the amount-equality check in that mode.
+message PaymentRequest {
+  string receiver_id = 1;
+  DisplayCard receiver_display_card = 2;
+  int64 amount_kobo = 3;
+  bytes session_nonce = 4;
+  google.protobuf.Timestamp issued_at = 5;
+  google.protobuf.Timestamp expires_at = 6;
+  bytes receiver_device_pubkey = 7;
+  bytes receiver_signature = 8;
+}
+
+// GossipBlob is an encrypted transaction carried by devices for propagation.
+// Wire form of domain.GossipBlob.
+message GossipBlob {
+  bytes transaction_hash = 1;
+  bytes encrypted_blob = 2;
+  bytes bank_signature = 3;
+  bytes ceiling_token_hash = 4;
+  int32 hop_count = 5;
+  int32 blob_size = 6;
+}
+
+// SettlementResult is the per-transaction outcome within a batch.
+// Mirrors domain.SettlementResult.
+message SettlementResult {
+  string transaction_id = 1;
+  int64 sequence_number = 2;
+  int64 submitted_amount_kobo = 3;
+  int64 settled_amount_kobo = 4;
+  TransactionStatus status = 5;
+  string reason = 6;
+}
+
+// BatchReceipt is the full receipt for a SubmitClaim batch.
+// Mirrors domain.SettlementBatch + per-transaction SettlementResult rows.
+message BatchReceipt {
+  string batch_id = 1;
+  string receiver_user_id = 2;
+  int32 total_submitted = 3;
+  int32 total_settled = 4;
+  int32 total_partial = 5;
+  int32 total_rejected = 6;
+  int64 total_amount_kobo = 7;
+  SettlementBatchStatus status = 8;
+  google.protobuf.Timestamp submitted_at = 9;
+  google.protobuf.Timestamp processed_at = 10;
+  repeated SettlementResult results = 11;
+}
+
+// AccountBalance is a single account's balance snapshot.
+message AccountBalance {
+  AccountKind kind = 1;
+  int64 balance_kobo = 2;
+  string currency = 3; // ISO-4217, always "NGN" for MVP.
+  google.protobuf.Timestamp updated_at = 4;
+}
