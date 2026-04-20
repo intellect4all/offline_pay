@@ -1,0 +1,2995 @@
+openapi: 3.1.0
+info:
+  title: OfflinePay BFF
+  version: 0.1.0
+servers:
+  - url: http://localhost:8082
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Liveness probe.
+      security: []
+      responses:
+        "200":
+          description: Service is healthy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /v1/auth/signup:
+    post:
+      operationId: postV1AuthSignup
+      summary: Register a new user (phone + password + profile). Lands at KYC tier TIER_1.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupBody"
+      responses:
+        "200":
+          description: Account created. Auth tokens issued. Email-verification OTP dispatched.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokens"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Phone or email already registered.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/auth/login:
+    post:
+      operationId: postV1AuthLogin
+      summary: Authenticate with phone + password.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: Auth tokens issued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokens"
+        "401":
+          description: Invalid credentials.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/auth/email/verify/request:
+    post:
+      operationId: postV1AuthEmailVerifyRequest
+      summary: Dispatch an email-verification OTP for the authenticated user.
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: OTP dispatched (or no-op if already verified).
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/auth/email/verify/confirm:
+    post:
+      operationId: postV1AuthEmailVerifyConfirm
+      summary: Confirm the email-verification OTP for the authenticated user.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailVerifyConfirmBody"
+      responses:
+        "204":
+          description: Email verified.
+        "401":
+          description: Invalid OTP or missing bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/auth/forgot-password/request:
+    post:
+      operationId: postV1AuthForgotPasswordRequest
+      summary: Dispatch a password-reset OTP by email. Always returns 204 (no enumeration).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequestBody"
+      responses:
+        "204":
+          description: Request accepted (a code is dispatched iff the email is registered).
+  /v1/auth/forgot-password/reset:
+    post:
+      operationId: postV1AuthForgotPasswordReset
+      summary: Reset a password by email + OTP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordResetBody"
+      responses:
+        "204":
+          description: Password reset.
+        "401":
+          description: Invalid OTP or credentials.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "400":
+          description: Validation error on the new password.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/auth/refresh:
+    post:
+      operationId: postV1AuthRefresh
+      summary: Rotate a refresh token.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshBody"
+      responses:
+        "200":
+          description: New auth tokens issued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokens"
+        "401":
+          description: Refresh token invalid or revoked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/auth/logout:
+    post:
+      operationId: postV1AuthLogout
+      summary: Revoke a refresh token.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogoutBody"
+      responses:
+        "204":
+          description: Refresh token revoked (idempotent).
+  /v1/auth/pin:
+    post:
+      operationId: postV1AuthPin
+      summary: Set (or replace) the authenticated user's transaction PIN.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetPinBody"
+      responses:
+        "204":
+          description: PIN stored.
+        "400":
+          description: PIN format invalid (must be 4 or 6 digits).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/auth/sessions:
+    get:
+      operationId: getV1AuthSessions
+      summary: List the authenticated user's active refresh sessions.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Active sessions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionList"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/auth/sessions/{id}/revoke:
+    post:
+      operationId: postV1AuthSessionsIdRevoke
+      summary: Revoke a single session owned by the authenticated user.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Session revoked (idempotent for already-revoked rows).
+        "400":
+          description: |
+            Cannot revoke the current session via this endpoint. Use
+            `/v1/auth/logout` with the refresh token instead.
+            `code=cannot_revoke_current`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Session not found or not owned by the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/auth/sessions/revoke-all-others:
+    post:
+      operationId: postV1AuthSessionsRevokeAllOthers
+      summary: Revoke every session for the caller except the current one.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Count of revoked sessions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevokeAllOthersResponse"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/auth/device-session:
+    post:
+      operationId: postV1AuthDeviceSession
+      summary: |
+        Issue an Ed25519-signed device session token. The token authorizes
+        offline-scope operations on this device (PIN/biometric-gated) when the
+        app starts cold without internet. Token verification is purely local
+        against the embedded `server_public_key`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceSessionRequest"
+      responses:
+        "200":
+          description: Device session token + server pubkey.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceSessionResponse"
+        "400":
+          description: Invalid request (missing device_id, unknown scope).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Device not owned by caller, or device deactivated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/auth/device-session/public-keys:
+    get:
+      operationId: getV1AuthDeviceSessionPublicKeys
+      summary: |
+        Return the active server public key(s) the device should trust when
+        verifying device session tokens offline. Cached at registration; the
+        device falls back to the cache if this endpoint is unreachable.
+      security: []
+      responses:
+        "200":
+          description: Active server public keys for device-session token verification.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceSessionPublicKeys"
+  /v1/me:
+    get:
+      operationId: getV1Me
+      summary: Fetch the authenticated user's profile.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/identity/display-card:
+    get:
+      operationId: getV1IdentityDisplayCard
+      summary: Fetch the caller's currently-issued DisplayCard.
+      description: |
+        Receivers embed the DisplayCard in every PaymentRequest they publish.
+        Clients should refresh this on login and whenever the name/account
+        shown in the UI changes.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Display card.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisplayCardInput"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Upstream error (bank key unavailable, signing failure).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/kyc/submit:
+    post:
+      operationId: postV1KycSubmit
+      summary: Submit a NIN (promotes to TIER_2) or BVN (promotes to TIER_3).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KYCSubmitBody"
+      responses:
+        "200":
+          description: Submission recorded (verified or rejected).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KYCSubmission"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/kyc/submissions:
+    get:
+      operationId: getV1KycSubmissions
+      summary: List the caller's KYC submission history.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Submissions, newest-first.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KYCSubmissionList"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/kyc/hint:
+    get:
+      operationId: getV1KycHint
+      summary: Dev helper — expected mock NIN/BVN for the caller's phone.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Map of id_type → expected value.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KYCHint"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/accounts/resolve/{accountNumber}:
+    get:
+      operationId: getV1AccountsResolveAccountNumber
+      summary: Resolve an account number to a masked owner label.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: accountNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Resolved account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResolvedAccount"
+        "400":
+          description: Malformed account number.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Account not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/transfers:
+    post:
+      operationId: postV1Transfers
+      summary: Initiate a user-to-user transfer.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InitiateTransferBody"
+      responses:
+        "200":
+          description: Transfer accepted (or existing transfer for repeated reference).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transfer"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: |
+            Missing or invalid bearer token, or transaction PIN rejected.
+            `code=pin_bad` indicates a wrong PIN (caller may retry).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "402":
+          description: |
+            KYC-tier limit check failed. Codes:
+              * `kyc_tier_blocked`   — sender has no KYC (UNVERIFIED).
+              * `exceeds_single_limit` — amount above tier's single-txn cap.
+              * `exceeds_daily_limit`  — this transfer would push today's
+                cumulative total above the tier's daily cap.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: |
+            Transfer blocked by fraud-scoring rules. Codes:
+              * `fraud_block` — a rule (e.g. velocity_spike) returned BLOCK.
+                Safe to retry later; the account is not suspended.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Receiver account not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: |
+            Self-transfer rejected, or `code=pin_not_set` indicating the
+            caller must first POST /v1/auth/pin before transferring.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "423":
+          description: |
+            Transaction PIN locked after too many wrong attempts.
+            `code=pin_locked`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    get:
+      operationId: getV1Transfers
+      summary: List transfers for the authenticated user (sender or receiver).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: Transfer list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransferList"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/wallet/fund-offline:
+    post:
+      operationId: postV1WalletFundOffline
+      summary: Debit main wallet, place lien, and issue a fresh ceiling token.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FundOfflineBody"
+      responses:
+        "200":
+          description: Ceiling token issued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FundOfflineResponse"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Permission denied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Precondition failed (e.g. insufficient main balance, active ceiling).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Upstream settlement server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/wallet/balances:
+    get:
+      operationId: getV1WalletBalances
+      summary: Fetch all five account balances for the authenticated user.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Balances snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetBalancesResponse"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Upstream settlement server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/wallet/move-to-main:
+    post:
+      operationId: postV1WalletMoveToMain
+      summary: Revoke active ceiling and release lien back to the main wallet.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Funds released to main wallet.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MoveToMainResponse"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Precondition failed (e.g. in-flight unsettled claims).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Upstream settlement server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/wallet/recover-offline-ceiling:
+    post:
+      operationId: postV1WalletRecoverOfflineCeiling
+      summary: |
+        Begin recovery of a ceiling whose device-side token was lost. The
+        lien stays locked during a quarantine window (expires_at +
+        auto_settle_timeout + grace) so any offline-carried claims can
+        still land; the expiry sweep then returns the remaining lien to
+        the main wallet.
+      description: |
+        Use this ONLY when the device has genuinely lost the ceiling
+        token (e.g. data corruption) — you cannot sign offline payments
+        with it. Unsettled server-visible claims block the call with
+        409 `unsettled_claims`; wait for those to settle first.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Ceiling moved into RECOVERY_PENDING. Funds will return to main after `release_after`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecoverOfflineCeilingResponse"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: No active ceiling on file for this user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Unsettled claims outstanding; recovery refused.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/wallet/ceiling/current:
+    get:
+      operationId: getV1WalletCeilingCurrent
+      summary: |
+        Fetch the payer's current non-terminal ceiling (ACTIVE or
+        RECOVERY_PENDING) with live settled / remaining totals. Used by
+        the mobile client to render the tri-state offline-wallet card
+        and to converge local state after a recovery.
+      description: |
+        Always returns 200 — `present: false` means the payer has no
+        offline wallet right now. `present: true` carries the full
+        status snapshot; `release_after` is populated only when status
+        is RECOVERY_PENDING.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current ceiling snapshot (or absent).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentCeilingResponse"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/wallet/refresh-ceiling:
+    post:
+      operationId: postV1WalletRefreshCeiling
+      summary: Consume the remaining ceiling into a fresh one with a new amount/TTL.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshCeilingBody"
+      responses:
+        "200":
+          description: New ceiling token issued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefreshCeilingResponse"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Precondition failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Upstream settlement server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/wallet/top-up:
+    post:
+      operationId: postV1WalletTopUp
+      summary: Dev-only endpoint to credit the user's main wallet with fake funds.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TopUpBody"
+      responses:
+        "200":
+          description: Balance credited.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopUpResponse"
+        "400":
+          description: Validation error (amount out of range).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Endpoint disabled (production).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/settlement/sync:
+    post:
+      operationId: postV1SettlementSync
+      summary: Sync payer-side and receiver-side settled transactions for reconciliation.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SyncBody"
+      responses:
+        "200":
+          description: Sync result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncResponse"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Upstream settlement server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/settlement/claims:
+    post:
+      operationId: postV1SettlementClaims
+      summary: Submit a batch of offline payment tokens for claim (Phase 4a).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitClaimBody"
+      responses:
+        "200":
+          description: Batch receipt.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchReceipt"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Duplicate client_batch_id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Upstream settlement server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/settlement/claims/{batchId}:
+    get:
+      operationId: getV1SettlementClaimsBatchID
+      summary: Fetch a previously submitted batch receipt.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Batch receipt.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchReceipt"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Batch belongs to another user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Batch not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Upstream settlement server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/settlement/gossip:
+    post:
+      operationId: postV1SettlementGossip
+      summary: Upload carried gossip blobs for settlement decryption and routing.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GossipUploadBody"
+      responses:
+        "200":
+          description: Gossip upload counts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GossipUploadResponse"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Upstream settlement server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/devices/attestation-challenge:
+    post:
+      operationId: postV1DevicesAttestationChallenge
+      summary: Obtain a fresh server-issued attestation nonce.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Attestation challenge issued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttestationChallengeResponse"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Upstream error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/devices:
+    post:
+      operationId: postV1Devices
+      summary: Register a new device for the authenticated user.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterDeviceBody"
+      responses:
+        "200":
+          description: Device registered.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterDeviceResponse"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Conflict.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Upstream error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/devices/{deviceId}/attest:
+    post:
+      operationId: postV1DevicesDeviceIdAttest
+      summary: Re-attest an existing device and receive a fresh device JWT.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttestBody"
+      responses:
+        "200":
+          description: Attestation result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttestResponse"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Device not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Upstream error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/devices/{deviceId}/deactivate:
+    post:
+      operationId: postV1DevicesDeviceIdDeactivate
+      summary: Deactivate a device owned by the authenticated user.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeactivateDeviceBody"
+      responses:
+        "200":
+          description: Device deactivated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeactivateDeviceResponse"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Device not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Upstream error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/devices/rotate:
+    post:
+      operationId: postV1DevicesRotate
+      summary: Rotate to a new device (retires the old one atomically).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RotateDeviceBody"
+      responses:
+        "200":
+          description: Device rotated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RotateDeviceResponse"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Conflict.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Upstream error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/devices/{deviceId}/revoke:
+    post:
+      operationId: postV1DevicesDeviceIdRevoke
+      summary: Revoke another device belonging to the authenticated user.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RevokeDeviceBody"
+      responses:
+        "200":
+          description: Device revoked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevokeDeviceResponse"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Device not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Upstream error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/devices/recover:
+    post:
+      operationId: postV1DevicesRecover
+      summary: Provision a replacement device via recovery proof (keyless).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecoverDeviceBody"
+      responses:
+        "200":
+          description: Device recovered.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecoverDeviceResponse"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Recovery proof rejected.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: User not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Upstream error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/devices/push-token:
+    post:
+      operationId: postV1DevicesPushToken
+      summary: Register (or refresh) an FCM push token for the authenticated user.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PushTokenBody"
+      responses:
+        "204":
+          description: Push token stored.
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteV1DevicesPushToken
+      summary: Remove an FCM push token for the authenticated user.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PushTokenDeleteBody"
+      responses:
+        "204":
+          description: Push token removed (or never existed).
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/keys/bank-public-keys:
+    post:
+      operationId: postV1KeysBankPublicKeys
+      summary: Fetch bank Ed25519 public keys (keyless).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BankPublicKeysBody"
+      responses:
+        "200":
+          description: Bank public keys.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BankPublicKeysResponse"
+        "502":
+          description: Upstream error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/keys/realm/{version}:
+    get:
+      operationId: getV1KeysRealmVersion
+      summary: Fetch a specific realm key version (authed, device-scoped).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+        - name: device_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Realm key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetRealmKeyResponse"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token, or device not owned by caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Key or device not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Upstream error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/keys/realm/active:
+    get:
+      operationId: getV1KeysRealmActive
+      summary: Fetch all active realm key versions in the overlap window.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: device_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+      responses:
+        "200":
+          description: Active realm keys.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetActiveRealmKeysResponse"
+        "400":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Upstream error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/keys/sealed-box-pubkey:
+    get:
+      operationId: getV1KeysSealedBoxPubkey
+      summary: Fetch the server's X25519 sealed-box public key (keyless).
+      security: []
+      responses:
+        "200":
+          description: Server sealed-box public key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SealedBoxPubkeyResponse"
+        "502":
+          description: Upstream error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/transfers/{id}:
+    get:
+      operationId: getV1TransfersID
+      summary: Fetch a transfer by id (must be a party).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Transfer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transfer"
+        "404":
+          description: Transfer not found (or caller not a party).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+    SignupBody:
+      type: object
+      additionalProperties: false
+      required:
+        - phone
+        - password
+        - first_name
+        - last_name
+        - email
+      properties:
+        phone:
+          type: string
+        password:
+          type: string
+          minLength: 8
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          format: email
+    LoginBody:
+      type: object
+      additionalProperties: false
+      required:
+        - phone
+        - password
+      properties:
+        phone:
+          type: string
+        password:
+          type: string
+    EmailVerifyConfirmBody:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+      properties:
+        code:
+          type: string
+    ForgotPasswordRequestBody:
+      type: object
+      additionalProperties: false
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+    ForgotPasswordResetBody:
+      type: object
+      additionalProperties: false
+      required:
+        - email
+        - code
+        - new_password
+      properties:
+        email:
+          type: string
+          format: email
+        code:
+          type: string
+        new_password:
+          type: string
+          minLength: 8
+    KYCSubmitBody:
+      type: object
+      additionalProperties: false
+      required:
+        - id_type
+        - id_number
+      properties:
+        id_type:
+          type: string
+          enum: [NIN, BVN]
+        id_number:
+          type: string
+    KYCSubmission:
+      type: object
+      required:
+        - id
+        - user_id
+        - id_type
+        - id_number
+        - status
+        - submitted_at
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        id_type:
+          type: string
+        id_number:
+          type: string
+        status:
+          type: string
+          enum: [VERIFIED, REJECTED]
+        rejection_reason:
+          type: string
+          nullable: true
+        tier_granted:
+          type: string
+          nullable: true
+        submitted_by:
+          type: string
+          nullable: true
+        submitted_at:
+          type: string
+          format: date-time
+        verified_at:
+          type: string
+          format: date-time
+          nullable: true
+    KYCSubmissionList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/KYCSubmission"
+    KYCHint:
+      type: object
+      additionalProperties:
+        type: string
+    RefreshBody:
+      type: object
+      additionalProperties: false
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+    LogoutBody:
+      type: object
+      additionalProperties: false
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+    AuthTokens:
+      type: object
+      required:
+        - user_id
+        - account_number
+        - access_token
+        - refresh_token
+        - access_expires_at
+        - refresh_expires_at
+      properties:
+        user_id:
+          type: string
+        account_number:
+          type: string
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        access_expires_at:
+          type: string
+          format: date-time
+        refresh_expires_at:
+          type: string
+          format: date-time
+        display_card:
+          $ref: "#/components/schemas/DisplayCardInput"
+          description: |
+            Server-issued identity credential. Clients cache this for use in
+            every PaymentRequest they publish. Optional on login responses
+            (clients should fall back to GET /v1/identity/display-card); always
+            populated on signup.
+    Me:
+      type: object
+      required:
+        - user_id
+        - phone
+        - account_number
+        - kyc_tier
+        - first_name
+        - last_name
+        - email
+        - email_verified
+      properties:
+        user_id:
+          type: string
+        phone:
+          type: string
+        account_number:
+          type: string
+        kyc_tier:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+        email_verified:
+          type: boolean
+        display_card:
+          $ref: "#/components/schemas/DisplayCardInput"
+          description: |
+            Freshly-issued DisplayCard for the caller. Optional so a transient
+            bank-key or signing failure doesn't break /me — clients fall back
+            to GET /v1/identity/display-card.
+    ResolvedAccount:
+      type: object
+      required:
+        - account_number
+        - masked_name
+      properties:
+        account_number:
+          type: string
+        masked_name:
+          type: string
+    InitiateTransferBody:
+      type: object
+      additionalProperties: false
+      required:
+        - receiver_account_number
+        - amount_kobo
+        - reference
+        - pin
+      properties:
+        receiver_account_number:
+          type: string
+        amount_kobo:
+          type: integer
+          format: int64
+        reference:
+          type: string
+        pin:
+          type: string
+          description: 4- or 6-digit transaction PIN. Never logged.
+    SetPinBody:
+      type: object
+      additionalProperties: false
+      required:
+        - pin
+      properties:
+        pin:
+          type: string
+          description: 4- or 6-digit transaction PIN.
+    Session:
+      type: object
+      required:
+        - id
+        - user_agent
+        - ip
+        - created_at
+        - expires_at
+        - is_current
+      properties:
+        id:
+          type: string
+        user_agent:
+          type: string
+        ip:
+          type: string
+        device_id:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        is_current:
+          type: boolean
+    SessionList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Session"
+    RevokeAllOthersResponse:
+      type: object
+      required:
+        - revoked
+      properties:
+        revoked:
+          type: integer
+          format: int32
+    DeviceSessionRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - device_id
+      properties:
+        device_id:
+          type: string
+          description: |
+            Caller's registered device identifier (returned by
+            `POST /v1/devices`). Must be active and owned by the authenticated
+            user, otherwise the server returns 403.
+        scope:
+          type: string
+          description: |
+            Capability scope this token grants on-device. Defaults to
+            `offline_pay`. Reserved for future tiers; unknown scopes 400.
+          enum:
+            - offline_pay
+    DeviceSessionResponse:
+      type: object
+      required:
+        - token
+        - server_public_key
+        - key_id
+        - issued_at
+        - expires_at
+        - scope
+      properties:
+        token:
+          type: string
+          description: |
+            Compact base64url-encoded `header.claims.signature` blob signed
+            with Ed25519. The device verifies it locally against
+            `server_public_key`.
+        server_public_key:
+          type: string
+          format: byte
+          description: 32-byte Ed25519 public key the device should cache.
+        key_id:
+          type: string
+          description: Identifier of the signing key (for rotation).
+        issued_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        scope:
+          type: string
+          enum:
+            - offline_pay
+    DeviceSessionPublicKey:
+      type: object
+      required:
+        - key_id
+        - public_key
+        - active_from
+      properties:
+        key_id:
+          type: string
+        public_key:
+          type: string
+          format: byte
+        active_from:
+          type: string
+          format: date-time
+        retired_at:
+          type: string
+          format: date-time
+          nullable: true
+    DeviceSessionPublicKeys:
+      type: object
+      required:
+        - keys
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeviceSessionPublicKey"
+    Transfer:
+      type: object
+      required:
+        - id
+        - sender_user_id
+        - receiver_user_id
+        - receiver_account_number
+        - amount_kobo
+        - status
+        - reference
+        - created_at
+      properties:
+        id:
+          type: string
+        sender_user_id:
+          type: string
+        receiver_user_id:
+          type: string
+        sender_display_name:
+          type: string
+          nullable: true
+          description: |
+            Best-effort "First Last" rendering of the sender pulled from the
+            users table at read time. Nullable so the API stays forward-
+            compatible if the join ever falls back (e.g. deleted user row).
+        receiver_display_name:
+          type: string
+          nullable: true
+          description: |
+            Best-effort "First Last" rendering of the receiver. Mirror of
+            `sender_display_name`.
+        receiver_account_number:
+          type: string
+        amount_kobo:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [ACCEPTED, PROCESSING, SETTLED, FAILED]
+        reference:
+          type: string
+        failure_reason:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        settled_at:
+          type: string
+          format: date-time
+          nullable: true
+    TransferList:
+      type: object
+      required:
+        - items
+        - limit
+        - offset
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transfer"
+        limit:
+          type: integer
+        offset:
+          type: integer
+    CeilingToken:
+      type: object
+      required:
+        - id
+        - payer_id
+        - ceiling_amount_kobo
+        - issued_at
+        - expires_at
+        - sequence_start
+        - payer_public_key
+        - bank_key_id
+        - bank_signature
+        - status
+      properties:
+        id:
+          type: string
+        payer_id:
+          type: string
+        ceiling_amount_kobo:
+          type: integer
+          format: int64
+        issued_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        sequence_start:
+          type: integer
+          format: int64
+        payer_public_key:
+          type: string
+          format: byte
+        bank_key_id:
+          type: string
+        bank_signature:
+          type: string
+          format: byte
+        status:
+          type: string
+          enum:
+            - CEILING_STATUS_UNSPECIFIED
+            - CEILING_STATUS_ACTIVE
+            - CEILING_STATUS_EXPIRED
+            - CEILING_STATUS_EXHAUSTED
+            - CEILING_STATUS_REVOKED
+    AccountBalance:
+      type: object
+      required:
+        - kind
+        - balance_kobo
+        - currency
+        - updated_at
+      properties:
+        kind:
+          type: string
+          enum:
+            - ACCOUNT_KIND_UNSPECIFIED
+            - ACCOUNT_KIND_MAIN
+            - ACCOUNT_KIND_OFFLINE
+            - ACCOUNT_KIND_LIEN_HOLDING
+            - ACCOUNT_KIND_RECEIVING_PENDING
+        balance_kobo:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+    FundOfflineBody:
+      type: object
+      additionalProperties: false
+      required:
+        - amount_kobo
+        - ttl_seconds
+        - payer_public_key
+      properties:
+        amount_kobo:
+          type: integer
+          format: int64
+        ttl_seconds:
+          type: integer
+          format: int64
+        payer_public_key:
+          type: string
+          format: byte
+    FundOfflineResponse:
+      type: object
+      required:
+        - ceiling
+        - lien_id
+      properties:
+        ceiling:
+          $ref: "#/components/schemas/CeilingToken"
+        lien_id:
+          type: string
+    GetBalancesResponse:
+      type: object
+      required:
+        - balances
+        - as_of
+      properties:
+        balances:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccountBalance"
+        as_of:
+          type: string
+          format: date-time
+    MoveToMainResponse:
+      type: object
+      required:
+        - released_kobo
+        - new_main_balance_kobo
+      properties:
+        released_kobo:
+          type: integer
+          format: int64
+        new_main_balance_kobo:
+          type: integer
+          format: int64
+    RecoverOfflineCeilingResponse:
+      type: object
+      required:
+        - ceiling_id
+        - quarantined_kobo
+        - release_after
+      properties:
+        ceiling_id:
+          type: string
+        quarantined_kobo:
+          type: integer
+          format: int64
+          description: |
+            Amount held in quarantine. Funds are released to the main
+            wallet by the expiry sweep once `release_after` passes.
+            Late-arriving offline claims against this ceiling will
+            settle first and reduce the released amount accordingly.
+        release_after:
+          type: string
+          format: date-time
+          description: |
+            Wall-clock time after which the expiry sweep returns the
+            remaining lien balance to the main wallet. Equals the
+            ceiling's original expiry plus the auto-settle timeout plus
+            a 30-minute grace.
+    CurrentCeilingResponse:
+      type: object
+      required:
+        - present
+      properties:
+        present:
+          type: boolean
+          description: |
+            False when the payer has no offline wallet (no ACTIVE or
+            RECOVERY_PENDING ceiling). All other fields are omitted or
+            zero in that case.
+        ceiling_id:
+          type: string
+        status:
+          type: string
+          description: ACTIVE or RECOVERY_PENDING.
+        ceiling_kobo:
+          type: integer
+          format: int64
+        settled_kobo:
+          type: integer
+          format: int64
+          description: |
+            Total settled across every payment token issued against
+            this ceiling. `ceiling_kobo - settled_kobo = remaining_kobo`.
+        remaining_kobo:
+          type: integer
+          format: int64
+          description: |
+            The amount the lien would return to main if the ceiling
+            released right now. Used for the offline-wallet card and
+            to cross-check against the lien account balance.
+        issued_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        release_after:
+          type: string
+          format: date-time
+          description: |
+            Populated only when status is RECOVERY_PENDING. After this
+            instant the expiry sweep releases the remaining lien back
+            to main.
+    RefreshCeilingBody:
+      type: object
+      additionalProperties: false
+      required:
+        - new_amount_kobo
+        - ttl_seconds
+        - payer_public_key
+      properties:
+        new_amount_kobo:
+          type: integer
+          format: int64
+        ttl_seconds:
+          type: integer
+          format: int64
+        payer_public_key:
+          type: string
+          format: byte
+    RefreshCeilingResponse:
+      type: object
+      required:
+        - ceiling
+        - lien_id
+      properties:
+        ceiling:
+          $ref: "#/components/schemas/CeilingToken"
+        lien_id:
+          type: string
+    SyncedTransaction:
+      type: object
+      required:
+        - transaction_id
+        - payer_id
+        - payee_id
+        - amount_kobo
+        - settled_amount_kobo
+        - sequence_number
+        - ceiling_token_id
+        - status
+      properties:
+        transaction_id:
+          type: string
+        payer_id:
+          type: string
+        payee_id:
+          type: string
+        amount_kobo:
+          type: integer
+          format: int64
+        settled_amount_kobo:
+          type: integer
+          format: int64
+        sequence_number:
+          type: integer
+          format: int64
+        ceiling_token_id:
+          type: string
+        status:
+          type: string
+          enum:
+            - TRANSACTION_STATUS_UNSPECIFIED
+            - TRANSACTION_STATUS_QUEUED
+            - TRANSACTION_STATUS_SUBMITTED
+            - TRANSACTION_STATUS_PENDING
+            - TRANSACTION_STATUS_SETTLED
+            - TRANSACTION_STATUS_PARTIALLY_SETTLED
+            - TRANSACTION_STATUS_REJECTED
+            - TRANSACTION_STATUS_EXPIRED
+        rejection_reason:
+          type: string
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+        settled_at:
+          type: string
+          format: date-time
+          nullable: true
+    SyncBody:
+      type: object
+      additionalProperties: false
+      properties:
+        since:
+          type: string
+          format: date-time
+          nullable: true
+        disputed_transaction_ids:
+          type: array
+          items:
+            type: string
+        finalize:
+          type: boolean
+    SyncResponse:
+      type: object
+      required:
+        - payer_side
+        - receiver_side
+        - synced_at
+        - finalized_count
+      properties:
+        payer_side:
+          type: array
+          items:
+            $ref: "#/components/schemas/SyncedTransaction"
+        receiver_side:
+          type: array
+          items:
+            $ref: "#/components/schemas/SyncedTransaction"
+        synced_at:
+          type: string
+          format: date-time
+        finalized_count:
+          type: integer
+          format: int32
+        finalize_pending:
+          type: boolean
+          description: |
+            True when the caller set `finalize=true` and the server enqueued a
+            settlement-finalize event. The ledger move runs asynchronously in
+            the worker; clients should surface an "in progress" hint and wait
+            for the `offline_payment_settled` push or the next sync cycle.
+    AttestationChallengeResponse:
+      type: object
+      required:
+        - nonce
+        - expires_at
+      properties:
+        nonce:
+          type: string
+          format: byte
+        expires_at:
+          type: string
+          format: date-time
+    PushTokenBody:
+      type: object
+      additionalProperties: false
+      required:
+        - fcm_token
+        - platform
+      properties:
+        fcm_token:
+          type: string
+          minLength: 1
+        platform:
+          type: string
+          enum:
+            - android
+            - ios
+    PushTokenDeleteBody:
+      type: object
+      additionalProperties: false
+      required:
+        - fcm_token
+      properties:
+        fcm_token:
+          type: string
+          minLength: 1
+    RegisterDeviceBody:
+      type: object
+      additionalProperties: false
+      required:
+        - device_public_key
+        - platform
+        - attestation_blob
+        - app_version
+        - attestation_nonce
+      properties:
+        device_public_key:
+          type: string
+          format: byte
+        platform:
+          type: string
+        attestation_blob:
+          type: string
+          format: byte
+        app_version:
+          type: string
+        attestation_nonce:
+          type: string
+          format: byte
+    RegisterDeviceResponse:
+      type: object
+      required:
+        - device_id
+        - device_jwt
+        - registered_at
+        - realm_key_version
+      properties:
+        device_id:
+          type: string
+        device_jwt:
+          type: string
+        registered_at:
+          type: string
+          format: date-time
+        realm_key_version:
+          type: integer
+          format: int32
+    AttestBody:
+      type: object
+      additionalProperties: false
+      required:
+        - attestation_blob
+        - nonce
+      properties:
+        attestation_blob:
+          type: string
+          format: byte
+        nonce:
+          type: string
+          format: byte
+    AttestResponse:
+      type: object
+      required:
+        - valid
+        - device_jwt
+        - expires_at
+      properties:
+        valid:
+          type: boolean
+        device_jwt:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        failure_reason:
+          type: string
+    DeactivateDeviceBody:
+      type: object
+      additionalProperties: false
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+    DeactivateDeviceResponse:
+      type: object
+      required:
+        - deactivated_at
+      properties:
+        deactivated_at:
+          type: string
+          format: date-time
+    RotateDeviceBody:
+      type: object
+      additionalProperties: false
+      required:
+        - old_device_id
+        - new_device_public_key
+        - platform
+        - attestation_blob
+        - app_version
+      properties:
+        old_device_id:
+          type: string
+        new_device_public_key:
+          type: string
+          format: byte
+        platform:
+          type: string
+        attestation_blob:
+          type: string
+          format: byte
+        app_version:
+          type: string
+    RotateDeviceResponse:
+      type: object
+      required:
+        - new_device_id
+        - device_jwt
+        - rotated_at
+        - realm_key_version
+      properties:
+        new_device_id:
+          type: string
+        device_jwt:
+          type: string
+        rotated_at:
+          type: string
+          format: date-time
+        realm_key_version:
+          type: integer
+          format: int32
+    RevokeDeviceBody:
+      type: object
+      additionalProperties: false
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+    RevokeDeviceResponse:
+      type: object
+      required:
+        - revoked_at
+      properties:
+        revoked_at:
+          type: string
+          format: date-time
+    RecoverDeviceBody:
+      type: object
+      additionalProperties: false
+      required:
+        - user_id
+        - recovery_proof
+        - new_device_public_key
+        - platform
+        - attestation_blob
+        - app_version
+      properties:
+        user_id:
+          type: string
+        recovery_proof:
+          type: string
+          format: byte
+        new_device_public_key:
+          type: string
+          format: byte
+        platform:
+          type: string
+        attestation_blob:
+          type: string
+          format: byte
+        app_version:
+          type: string
+    RecoverDeviceResponse:
+      type: object
+      required:
+        - new_device_id
+        - recovered_at
+        - realm_key_version
+      properties:
+        new_device_id:
+          type: string
+        recovered_at:
+          type: string
+          format: date-time
+        realm_key_version:
+          type: integer
+          format: int32
+    BankPublicKey:
+      type: object
+      required:
+        - key_id
+        - public_key
+        - active_from
+      properties:
+        key_id:
+          type: string
+        public_key:
+          type: string
+          format: byte
+        active_from:
+          type: string
+          format: date-time
+        retired_at:
+          type: string
+          format: date-time
+          nullable: true
+    BankPublicKeysBody:
+      type: object
+      additionalProperties: false
+      properties:
+        key_ids:
+          type: array
+          items:
+            type: string
+    BankPublicKeysResponse:
+      type: object
+      required:
+        - keys
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: "#/components/schemas/BankPublicKey"
+    RealmKey:
+      type: object
+      required:
+        - version
+        - key
+        - active_from
+      properties:
+        version:
+          type: integer
+          format: int32
+        key:
+          type: string
+          format: byte
+        active_from:
+          type: string
+          format: date-time
+        retired_at:
+          type: string
+          format: date-time
+          nullable: true
+    GetRealmKeyResponse:
+      type: object
+      required:
+        - version
+        - key
+        - active_from
+        - expires_at
+      properties:
+        version:
+          type: integer
+          format: int32
+        key:
+          type: string
+          format: byte
+        active_from:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+    GetActiveRealmKeysResponse:
+      type: object
+      required:
+        - keys
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: "#/components/schemas/RealmKey"
+    SealedBoxPubkeyResponse:
+      type: object
+      required:
+        - public_key
+        - key_id
+        - active_from
+      properties:
+        public_key:
+          type: string
+          format: byte
+        key_id:
+          type: string
+        active_from:
+          type: string
+          format: date-time
+    PaymentTokenInput:
+      type: object
+      additionalProperties: false
+      required:
+        - payer_id
+        - payee_id
+        - amount_kobo
+        - sequence_number
+        - remaining_ceiling_kobo
+        - timestamp
+        - ceiling_token_id
+        - payer_signature
+        - session_nonce
+        - request_hash
+      properties:
+        payer_id:
+          type: string
+        payee_id:
+          type: string
+        amount_kobo:
+          type: integer
+          format: int64
+        sequence_number:
+          type: integer
+          format: int64
+        remaining_ceiling_kobo:
+          type: integer
+          format: int64
+        timestamp:
+          type: string
+          format: date-time
+        ceiling_token_id:
+          type: string
+        payer_signature:
+          type: string
+          format: byte
+        session_nonce:
+          type: string
+          format: byte
+          description: 16-byte nonce from the PaymentRequest; single-use per receiver.
+        request_hash:
+          type: string
+          format: byte
+          description: sha256(canonical(PaymentRequest)) — server recomputes to detect tampering.
+    CeilingTokenInput:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - payer_id
+        - ceiling_amount_kobo
+        - issued_at
+        - expires_at
+        - sequence_start
+        - payer_public_key
+        - bank_key_id
+        - bank_signature
+        - status
+      properties:
+        id:
+          type: string
+        payer_id:
+          type: string
+        ceiling_amount_kobo:
+          type: integer
+          format: int64
+        issued_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        sequence_start:
+          type: integer
+          format: int64
+        payer_public_key:
+          type: string
+          format: byte
+        bank_key_id:
+          type: string
+        bank_signature:
+          type: string
+          format: byte
+        status:
+          type: string
+          enum:
+            - CEILING_STATUS_UNSPECIFIED
+            - CEILING_STATUS_ACTIVE
+            - CEILING_STATUS_EXPIRED
+            - CEILING_STATUS_EXHAUSTED
+            - CEILING_STATUS_REVOKED
+    DisplayCardInput:
+      type: object
+      additionalProperties: false
+      description: |
+        Server-issued identity credential. The receiver embeds this in every
+        PaymentRequest they publish; the payer verifies the server signature
+        against the cached bank public key to confirm display_name really
+        belongs to user_id.
+      required:
+        - user_id
+        - display_name
+        - account_number
+        - issued_at
+        - bank_key_id
+        - server_signature
+      properties:
+        user_id:
+          type: string
+        display_name:
+          type: string
+        account_number:
+          type: string
+        issued_at:
+          type: string
+          format: date-time
+        bank_key_id:
+          type: string
+        server_signature:
+          type: string
+          format: byte
+    PaymentRequestInput:
+      type: object
+      additionalProperties: false
+      description: |
+        Receiver-signed invoice the payer counter-signs before issuing a
+        PaymentToken. amount_kobo=0 is the "unbound" sentinel (P2P fallback:
+        the payer enters the amount themselves).
+      required:
+        - receiver_id
+        - receiver_display_card
+        - amount_kobo
+        - session_nonce
+        - issued_at
+        - expires_at
+        - receiver_device_pubkey
+        - receiver_signature
+      properties:
+        receiver_id:
+          type: string
+        receiver_display_card:
+          $ref: "#/components/schemas/DisplayCardInput"
+        amount_kobo:
+          type: integer
+          format: int64
+          description: 0 means "unbound" — the payer picks the amount.
+        session_nonce:
+          type: string
+          format: byte
+          description: 16 random bytes; single-use per receiver.
+        issued_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        receiver_device_pubkey:
+          type: string
+          format: byte
+        receiver_signature:
+          type: string
+          format: byte
+    SubmitClaimBody:
+      type: object
+      additionalProperties: false
+      required:
+        - client_batch_id
+        - tokens
+        - ceilings
+        - requests
+      properties:
+        client_batch_id:
+          type: string
+        tokens:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaymentTokenInput"
+        ceilings:
+          type: array
+          items:
+            $ref: "#/components/schemas/CeilingTokenInput"
+        requests:
+          type: array
+          description: |
+            Receiver-signed PaymentRequests each token counter-signs. Match
+            by session_nonce — every token must have exactly one request.
+          items:
+            $ref: "#/components/schemas/PaymentRequestInput"
+    SettlementResult:
+      type: object
+      required:
+        - transaction_id
+        - sequence_number
+        - submitted_amount_kobo
+        - settled_amount_kobo
+        - status
+      properties:
+        transaction_id:
+          type: string
+        sequence_number:
+          type: integer
+          format: int64
+        submitted_amount_kobo:
+          type: integer
+          format: int64
+        settled_amount_kobo:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum:
+            - TRANSACTION_STATUS_UNSPECIFIED
+            - TRANSACTION_STATUS_QUEUED
+            - TRANSACTION_STATUS_SUBMITTED
+            - TRANSACTION_STATUS_PENDING
+            - TRANSACTION_STATUS_SETTLED
+            - TRANSACTION_STATUS_PARTIALLY_SETTLED
+            - TRANSACTION_STATUS_REJECTED
+            - TRANSACTION_STATUS_EXPIRED
+        reason:
+          type: string
+          nullable: true
+    BatchReceipt:
+      type: object
+      required:
+        - batch_id
+        - receiver_user_id
+        - total_submitted
+        - total_settled
+        - total_partial
+        - total_rejected
+        - total_amount_kobo
+        - status
+        - submitted_at
+        - results
+      properties:
+        batch_id:
+          type: string
+        receiver_user_id:
+          type: string
+        total_submitted:
+          type: integer
+          format: int32
+        total_settled:
+          type: integer
+          format: int32
+        total_partial:
+          type: integer
+          format: int32
+        total_rejected:
+          type: integer
+          format: int32
+        total_amount_kobo:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum:
+            - SETTLEMENT_BATCH_STATUS_UNSPECIFIED
+            - SETTLEMENT_BATCH_STATUS_RECEIVED
+            - SETTLEMENT_BATCH_STATUS_PROCESSING
+            - SETTLEMENT_BATCH_STATUS_COMPLETED
+            - SETTLEMENT_BATCH_STATUS_FAILED
+        submitted_at:
+          type: string
+          format: date-time
+        processed_at:
+          type: string
+          format: date-time
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/SettlementResult"
+    GossipBlobInput:
+      type: object
+      additionalProperties: false
+      required:
+        - transaction_hash
+        - encrypted_blob
+        - bank_signature
+        - ceiling_token_hash
+        - hop_count
+        - blob_size
+      properties:
+        transaction_hash:
+          type: string
+          format: byte
+        encrypted_blob:
+          type: string
+          format: byte
+        bank_signature:
+          type: string
+          format: byte
+        ceiling_token_hash:
+          type: string
+          format: byte
+        hop_count:
+          type: integer
+          format: int32
+        blob_size:
+          type: integer
+          format: int32
+    GossipUploadBody:
+      type: object
+      additionalProperties: false
+      required:
+        - blobs
+      properties:
+        blobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/GossipBlobInput"
+    GossipUploadResponse:
+      type: object
+      required:
+        - accepted
+        - duplicates
+        - invalid
+      properties:
+        accepted:
+          type: integer
+          format: int32
+        duplicates:
+          type: integer
+          format: int32
+        invalid:
+          type: integer
+          format: int32
+    TopUpBody:
+      type: object
+      additionalProperties: false
+      required:
+        - amount_kobo
+      properties:
+        amount_kobo:
+          type: integer
+          format: int64
+          description: Amount to credit in kobo (1-10000000, i.e. max 100k naira).
+    TopUpResponse:
+      type: object
+      required:
+        - new_balance_kobo
+      properties:
+        new_balance_kobo:
+          type: integer
+          format: int64
+          description: Updated main wallet balance in kobo.
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
