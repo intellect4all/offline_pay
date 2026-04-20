@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>OfflinePay · Demo Funding</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --border: #334155;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #22c55e;
+      --accent-hover: #16a34a;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    main {
+      max-width: 480px;
+      margin: 48px auto;
+      padding: 24px;
+    }
+    h1 {
+      font-size: 24px;
+      margin: 0 0 4px;
+    }
+    p.lead {
+      color: var(--muted);
+      margin: 0 0 24px;
+      font-size: 14px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin: 0 0 6px;
+    }
+    input, select {
+      width: 100%;
+      padding: 10px 12px;
+      background: #0b1224;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 14px;
+      margin-bottom: 14px;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    select:disabled {
+      opacity: 0.7;
+    }
+    button {
+      width: 100%;
+      padding: 11px 14px;
+      background: var(--accent);
+      color: #052e14;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button:hover:not(:disabled) { background: var(--accent-hover); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .hidden { display: none; }
+    .holder {
+      padding: 12px;
+      background: #0b1224;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 14px;
+      font-size: 13px;
+    }
+    .holder span.label {
+      color: var(--muted);
+      display: block;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 11px;
+      margin-bottom: 3px;
+    }
+    .banner {
+      padding: 12px 14px;
+      border-radius: 8px;
+      margin-bottom: 14px;
+      font-size: 13px;
+      border: 1px solid var(--border);
+    }
+    .banner.success {
+      background: rgba(34, 197, 94, 0.1);
+      border-color: var(--accent);
+    }
+    .banner.error {
+      background: rgba(239, 68, 68, 0.1);
+      border-color: var(--danger);
+    }
+    .row { display: flex; gap: 8px; }
+    .row button.secondary {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .note {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 14px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Demo Funding</h1>
+    <p class="lead">Mint test money into any OfflinePay account. Double-entry posted from the Test Bank treasury.</p>
+
+    <div id="banner"></div>
+
+    <div class="card" id="step-lookup">
+      <label for="account_number">Account number</label>
+      <input id="account_number" inputmode="numeric" maxlength="10" placeholder="10-digit account number" autocomplete="off" />
+
+      <label for="bank_code">Bank</label>
+      <select id="bank_code" disabled>
+        <option value="TEST" selected>Test Bank</option>
+      </select>
+
+      <button id="btn-verify" type="button">Verify name</button>
+    </div>
+
+    <div class="card hidden" id="step-fund">
+      <div class="holder">
+        <span class="label">Account holder</span>
+        <strong id="holder-name">—</strong>
+        <span class="label" style="margin-top:8px;">Account number</span>
+        <strong id="holder-account">—</strong>
+      </div>
+
+      <label for="amount">Amount (₦)</label>
+      <input id="amount" inputmode="numeric" placeholder="e.g. 5000 (max 500,000)" />
+
+      <div class="row">
+        <button id="btn-fund" type="button">Fund account</button>
+        <button id="btn-reset" type="button" class="secondary">Start over</button>
+      </div>
+    </div>
+
+    <p class="note">Demo endpoint. Not for production. Per-mint limit: ₦500,000.</p>
+  </main>
+  <script src="/demo/app.js"></script>
+</body>
+</html>
