@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: offlinepay
+    orgId: 1
+    folder: OfflinePay
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

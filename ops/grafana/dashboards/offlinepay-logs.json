@@ -1,0 +1,24 @@
+{
+  "title": "OfflinePay — Logs",
+  "uid": "offlinepay-logs",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "BFF 4xx rate by path (log-derived)",
+      "type": "timeseries",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "sum by (path) (rate({service=\"bff\", level=\"WARN\"} | json | path =~ \".+\" [5m]))",
+          "legendFormat": "{{path}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 10 }
+    }
+  ]
+}

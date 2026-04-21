@@ -1,0 +1,26 @@
+{
+  "title": "OfflinePay — Traces",
+  "uid": "offlinepay-traces",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Recent services (Tempo)",
+      "type": "table",
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "targets": [
+        {
+          "queryType": "traceql",
+          "query": "{ }",
+          "tableType": "traces",
+          "refId": "A",
+          "limit": 50
+        }
+      ],
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 14 }
+    }
+  ]
+}
