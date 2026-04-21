@@ -1,0 +1,53 @@
+groups:
+  - name: offlinepay.rules
+    interval: 30s
+    rules:
+      - alert: LedgerImbalance
+        expr: increase(offlinepay_grpc_requests_total{method=~".*NightlyLedgerReconcile.*",code!="OK"}[1d]) > 0
+        for: 5m
+        labels:
+          severity: critical
+          service: offlinepay
+        annotations:
+          summary: "Nightly ledger reconciliation reported a discrepancy"
+          description: "The nightly ledger reconcile run failed or surfaced a balance discrepancy. Inspect the latest reconciliation_runs row and slog for run_id."
+
+      - alert: AutoSettleBacklog
+        expr: offlinepay_settlement_latency_seconds_count{phase="auto_settle"} - offlinepay_settlement_latency_seconds_count{phase="finalize"} > 1000
+        for: 15m
+        labels:
+          severity: warning
+          service: offlinepay
+        annotations:
+          summary: "Auto-settle backlog is growing"
+          description: "More than 1000 transactions are stuck waiting on auto-settlement. Check that the AutoSettleSweep cron is running and Postgres is healthy."
+
+      - alert: FraudRateSpike
+        expr: sum(rate(offlinepay_fraud_signal_total[5m])) > 1
+        for: 10m
+        labels:
+          severity: warning
+          service: offlinepay
+        annotations:
+          summary: "Fraud signal rate elevated"
+          description: "Fraud signals are accumulating at >1/sec for the last 10m. Look for a coordinated double-spend or a misbehaving client."
+
+      - alert: RPCErrorBurst
+        expr: sum(rate(offlinepay_grpc_requests_total{code!="OK"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: offlinepay
+        annotations:
+          summary: "gRPC error rate elevated"
+          description: "More than 0.1 errors/sec across all RPCs over the last 5m. Inspect logs filtered by code != OK."
+
+      - alert: ServerDown
+        expr: up{job="offlinepay-server"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: offlinepay
+        annotations:
+          summary: "offlinepay-server is unreachable"
+          description: "Prometheus has not scraped the offlinepay server for 2 minutes."

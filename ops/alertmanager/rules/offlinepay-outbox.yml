@@ -1,0 +1,11 @@
+groups:
+  - name: offlinepay-outbox
+    rules:
+      - alert: OutboxBacklog
+        expr: offlinepay_outbox_oldest_age_seconds > 60
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Outbox oldest unprocessed row is >60s old"
+          description: "Transfer worker may be stuck or NATS unreachable."
