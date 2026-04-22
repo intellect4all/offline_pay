@@ -46,18 +46,24 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      OFFLINEPAY_ENV: local
-      OFFLINEPAY_LOG_FORMAT: json
-      OFFLINEPAY_LOG_LEVEL: info
+      OFFLINEPAY_ENV: ${OFFLINEPAY_ENV:-local}
+      OFFLINEPAY_LOG_FORMAT: ${OFFLINEPAY_LOG_FORMAT:-json}
+      OFFLINEPAY_LOG_LEVEL: ${OFFLINEPAY_LOG_LEVEL:-info}
+
       DB_URL: postgres://offlinepay:offlinepay@postgres:5432/offlinepay?sslmode=disable
-      ADMIN_HTTP_ADDR: ":8088"
-      ADMIN_CORS_ORIGIN: "http://localhost:3000"
-      ADMIN_JWT_SECRET: "dev-insecure-adminapi-secret-change-me-0123456789"
-      MIGRATE_ON_BOOT: "true"
+      ADMIN_HTTP_ADDR: ${ADMIN_HTTP_ADDR:-:8088}
+      ADMIN_CORS_ORIGIN: ${ADMIN_CORS_ORIGIN:-http://localhost:3000}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:-dev-insecure-adminapi-secret-change-me-0123456789}
+      ADMIN_JWT_AUDIENCE: ${ADMIN_JWT_AUDIENCE:-offlinepay-admin}
+      ADMIN_ACCESS_TTL_MINUTES: ${ADMIN_ACCESS_TTL_MINUTES:-15}
+      ADMIN_REFRESH_TTL_HOURS: ${ADMIN_REFRESH_TTL_HOURS:-168}
+      MIGRATE_ON_BOOT: ${MIGRATE_ON_BOOT:-true}
+
       OTEL_EXPORTER_OTLP_ENDPOINT: "tempo:4317"
-      OTEL_EXPORTER_OTLP_INSECURE: "true"
-      OTEL_SERVICE_NAME: "offlinepay-adminapi"
-      OTEL_SERVICE_VERSION: "0.1.0"
+      OTEL_EXPORTER_OTLP_INSECURE: ${OTEL_EXPORTER_OTLP_INSECURE:-true}
+      OTEL_SERVICE_NAME: offlinepay-adminapi
+      OTEL_SERVICE_VERSION: ${OTEL_SERVICE_VERSION:-0.1.0}
+      OTEL_TRACES_SAMPLER_RATIO: ${OTEL_TRACES_SAMPLER_RATIO:-}
     ports:
       - "8088:8088"
     networks:
@@ -87,19 +93,42 @@ services:
       redis:
         condition: service_healthy
     environment:
-      OFFLINEPAY_ENV: local
-      OFFLINEPAY_LOG_FORMAT: json
-      OFFLINEPAY_LOG_LEVEL: info
-      BFF_HTTP_ADDR: ":8082"
+      OFFLINEPAY_ENV: ${OFFLINEPAY_ENV:-local}
+      OFFLINEPAY_LOG_FORMAT: ${OFFLINEPAY_LOG_FORMAT:-json}
+      OFFLINEPAY_LOG_LEVEL: ${OFFLINEPAY_LOG_LEVEL:-info}
+      BFF_HTTP_ADDR: ${BFF_HTTP_ADDR:-:8082}
+
       DB_URL: postgres://offlinepay:offlinepay@postgres:5432/offlinepay?sslmode=disable
       REDIS_URL: redis://redis:6379/0
-      BFF_JWT_SECRET: "dev-insecure-bff-secret-change-me-0123456789"
-      MIGRATE_ON_BOOT: "true"
-      BFF_ENABLE_DEV_TOPUP: "true"
+      BFF_JWT_SECRET: ${BFF_JWT_SECRET:-dev-insecure-bff-secret-change-me-0123456789}
+      BFF_JWT_AUDIENCE: ${BFF_JWT_AUDIENCE:-offlinepay-user}
+      BFF_ACCESS_TTL_MINUTES: ${BFF_ACCESS_TTL_MINUTES:-15}
+      BFF_REFRESH_TTL_HOURS: ${BFF_REFRESH_TTL_HOURS:-168}
+      BFF_OTP_TTL_MINUTES: ${BFF_OTP_TTL_MINUTES:-5}
+      BFF_OTP_MAX_ATTEMPTS: ${BFF_OTP_MAX_ATTEMPTS:-5}
+      BFF_RATE_LIMIT_RPS: ${BFF_RATE_LIMIT_RPS:-20}
+      BFF_RATE_LIMIT_BURST: ${BFF_RATE_LIMIT_BURST:-40}
+      BFF_ENABLE_DEV_TOPUP: ${BFF_ENABLE_DEV_TOPUP:-true}
+      BFF_ENABLE_DEMO_MINT: ${BFF_ENABLE_DEMO_MINT:-true}
+      BFF_DEVICE_SESSION_PRIVKEY: ${BFF_DEVICE_SESSION_PRIVKEY:-}
+      BFF_DEVICE_SESSION_KEY_ID: ${BFF_DEVICE_SESSION_KEY_ID:-}
+      MIGRATE_ON_BOOT: ${MIGRATE_ON_BOOT:-true}
+      CEILING_TTL_HOURS: ${CEILING_TTL_HOURS:-24}
+      AUTO_SETTLE_TIMEOUT_HOURS: ${AUTO_SETTLE_TIMEOUT_HOURS:-72}
+      CLOCK_GRACE_MINUTES: ${CLOCK_GRACE_MINUTES:-30}
+      SERVER_SEALED_BOX_PRIVKEY: ${SERVER_SEALED_BOX_PRIVKEY:-}
+      SERVER_SEALED_BOX_PREVIOUS_PRIVKEYS: ${SERVER_SEALED_BOX_PREVIOUS_PRIVKEYS:-}
+      CRYPTO_SIGNER: ${CRYPTO_SIGNER:-local}
+      VAULT_ADDR: ${VAULT_ADDR:-}
+      VAULT_TOKEN: ${VAULT_TOKEN:-}
+      VAULT_TRANSIT_MOUNT: ${VAULT_TRANSIT_MOUNT:-transit}
+      ATTESTATION_MODE: ${ATTESTATION_MODE:-dev}
+
       OTEL_EXPORTER_OTLP_ENDPOINT: "tempo:4317"
-      OTEL_EXPORTER_OTLP_INSECURE: "true"
-      OTEL_SERVICE_NAME: "offlinepay-bff"
-      OTEL_SERVICE_VERSION: "0.1.0"
+      OTEL_EXPORTER_OTLP_INSECURE: ${OTEL_EXPORTER_OTLP_INSECURE:-true}
+      OTEL_SERVICE_NAME: offlinepay-bff
+      OTEL_SERVICE_VERSION: ${OTEL_SERVICE_VERSION:-0.1.0}
+      OTEL_TRACES_SAMPLER_RATIO: ${OTEL_TRACES_SAMPLER_RATIO:-}
     ports:
       - "8082:8082"
     networks:
@@ -115,23 +144,26 @@ services:
       nats:
         condition: service_started
     environment:
-      OFFLINEPAY_ENV: local
-      OFFLINEPAY_LOG_FORMAT: json
-      OFFLINEPAY_LOG_LEVEL: info
+      OFFLINEPAY_ENV: ${OFFLINEPAY_ENV:-local}
+      OFFLINEPAY_LOG_FORMAT: ${OFFLINEPAY_LOG_FORMAT:-json}
+      OFFLINEPAY_LOG_LEVEL: ${OFFLINEPAY_LOG_LEVEL:-info}
+
       DB_URL: postgres://offlinepay:offlinepay@postgres:5432/offlinepay?sslmode=disable
       NATS_URL: nats://nats:4222
-      WORKER_METRICS_ADDR: ":9102"
-      # FCM credentials (optional) — empty values keep the worker on the
-      # LogSender fallback. Export FCM_PROJECT_ID and FCM_SERVICE_ACCOUNT_JSON
-      # in your shell (or in `.env`) before `docker compose up`. The JSON can
-      # be raw, base64-encoded, or a path *inside the container* — base64 is
-      # the friction-free choice for compose.
+      WORKER_METRICS_ADDR: ${WORKER_METRICS_ADDR:-:9102}
+      WORKER_BATCH_SIZE: ${WORKER_BATCH_SIZE:-16}
+      WORKER_DISPATCH_INTERVAL_MS: ${WORKER_DISPATCH_INTERVAL_MS:-500}
+      # FCM credentials (optional) — leave blank in .env to keep the worker on the
+      # LogSender fallback. The JSON can be raw, base64-encoded, or a path *inside
+      # the container* — base64 is the friction-free choice for compose.
       FCM_PROJECT_ID: ${FCM_PROJECT_ID:-}
       FCM_SERVICE_ACCOUNT_JSON: ${FCM_SERVICE_ACCOUNT_JSON:-}
+      # Hardcoded — tempo container hostname.
       OTEL_EXPORTER_OTLP_ENDPOINT: "tempo:4317"
-      OTEL_EXPORTER_OTLP_INSECURE: "true"
-      OTEL_SERVICE_NAME: "offlinepay-transferworker"
-      OTEL_SERVICE_VERSION: "0.1.0"
+      OTEL_EXPORTER_OTLP_INSECURE: ${OTEL_EXPORTER_OTLP_INSECURE:-true}
+      OTEL_SERVICE_NAME: offlinepay-transferworker
+      OTEL_SERVICE_VERSION: ${OTEL_SERVICE_VERSION:-0.1.0}
+      OTEL_TRACES_SAMPLER_RATIO: ${OTEL_TRACES_SAMPLER_RATIO:-}
     ports:
       - "9102:9102"
     networks:
