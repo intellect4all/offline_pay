@@ -1,0 +1,4 @@
+*.pem
+*.key
+*.srl
+!gen-dev-pki.sh

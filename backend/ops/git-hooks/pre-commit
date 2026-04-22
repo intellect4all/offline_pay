@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Pre-commit hook: fast local sanity checks for offline_pay.
+# - go vet + go unit tests (backend)
+# - dart test (mobile/packages/core) if the dart toolchain is on PATH
+#
+# This is a PoC substitute for remote CI. Slow suites (integration, e2e,
+# scale, fuzz) are opt-in via `make check-all`.
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+echo "==> go vet"
+( cd backend && go vet ./... )
+
+echo "==> go test (unit)"
+( cd backend && go test ./... -count=1 )
+
+if command -v dart >/dev/null 2>&1; then
+    echo "==> dart test (mobile/packages/core)"
+    ( cd mobile/packages/core && dart test )
+else
+    echo "==> skipping dart test (dart not on PATH; PoC)"
+fi
+
+echo "pre-commit: OK"
