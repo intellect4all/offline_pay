@@ -192,6 +192,40 @@ services:
     mem_limit: 192m
     cpus: 0.5
 
+  opsctl:
+    # One-shot ops CLI. Not started by `docker compose up` (tools profile).
+    # Invoke with: docker compose run --rm opsctl <subcommand> [flags]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.opsctl
+    profiles: ["tools"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      OFFLINEPAY_ENV: ${OFFLINEPAY_ENV:-local}
+      OFFLINEPAY_LOG_FORMAT: ${OFFLINEPAY_LOG_FORMAT:-json}
+      OFFLINEPAY_LOG_LEVEL: ${OFFLINEPAY_LOG_LEVEL:-info}
+
+      DB_URL: postgres://offlinepay:offlinepay@postgres:5432/offlinepay?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      BFF_JWT_SECRET: ${BFF_JWT_SECRET:-dev-insecure-bff-secret-change-me-0123456789}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:-dev-insecure-adminapi-secret-change-me-0123456789}
+      CEILING_TTL_HOURS: ${CEILING_TTL_HOURS:-24}
+      AUTO_SETTLE_TIMEOUT_HOURS: ${AUTO_SETTLE_TIMEOUT_HOURS:-72}
+      CLOCK_GRACE_MINUTES: ${CLOCK_GRACE_MINUTES:-30}
+      SERVER_SEALED_BOX_PRIVKEY: ${SERVER_SEALED_BOX_PRIVKEY:-}
+      SERVER_SEALED_BOX_PREVIOUS_PRIVKEYS: ${SERVER_SEALED_BOX_PREVIOUS_PRIVKEYS:-}
+      CRYPTO_SIGNER: ${CRYPTO_SIGNER:-local}
+      VAULT_ADDR: ${VAULT_ADDR:-}
+      VAULT_TOKEN: ${VAULT_TOKEN:-}
+      VAULT_TRANSIT_MOUNT: ${VAULT_TRANSIT_MOUNT:-transit}
+      BFF_DEVICE_SESSION_PRIVKEY: ${BFF_DEVICE_SESSION_PRIVKEY:-}
+      BFF_DEVICE_SESSION_KEY_ID: ${BFF_DEVICE_SESSION_KEY_ID:-}
+    networks:
+      - offlinepay
+    restart: "no"
+
   prometheus:
     image: prom/prometheus:v2.54.1
     depends_on:

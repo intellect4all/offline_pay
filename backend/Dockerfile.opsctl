@@ -1,0 +1,16 @@
+# syntax=docker/dockerfile:1.7
+# Build stage — compiles the opsctl CLI (one-shot ops rituals).
+FROM golang:1.25-alpine AS build
+WORKDIR /src
+RUN apk add --no-cache git ca-certificates
+COPY backend/go.mod backend/go.sum ./
+RUN go mod download
+COPY backend/ ./
+RUN CGO_ENABLED=0 GOOS=linux \
+    go build -trimpath -ldflags="-s -w" -o /out/opsctl ./cmd/opsctl
+
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/opsctl /opsctl
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+USER nonroot:nonroot
+ENTRYPOINT ["/opsctl"]
