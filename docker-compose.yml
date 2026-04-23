@@ -38,7 +38,7 @@ services:
 
   nats:
     image: nats:2.10-alpine
-    command: ["-js", "-m", "8222", "--max_payload", "1MB"]
+    command: ["-js", "-m", "8222"]
     networks:
       - offlinepay
     restart: unless-stopped

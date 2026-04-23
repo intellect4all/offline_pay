@@ -1,7 +1,7 @@
 // MVP key store. flutter_secure_storage gets us Android Keystore + iOS
 // Keychain at rest, but the private key still materialises in the Dart
 // heap to sign. Production wants a native signer (StrongBox / Secure
-// Enclave) behind a platform channel — see TODO.md A-05.
+// Enclave) behind a platform channel
 
 import 'dart:convert';
 import 'dart:typed_data';
