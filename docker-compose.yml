@@ -302,13 +302,11 @@ services:
     environment:
       MB_DB_FILE: /metabase-data/metabase.db
       MB_SITE_NAME: "OfflinePay Metabase"
-      JAVA_OPTS: "-Xmx512m -XX:MaxMetaspaceSize=128m"
     volumes:
       - metabase_data:/metabase-data
     networks:
       - offlinepay
     restart: unless-stopped
-    mem_limit: 768m
     cpus: 1.0
 
   caddy:
