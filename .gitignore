@@ -41,6 +41,7 @@ mobile/**/ios/Runner/GoogleService-Info.plist
 
 # Internal-only whitepaper (not for public repo)
 docs/WHITEPAPER.md
+docs/private/
 
 # Dev PKI (regenerate with `make cert-dev`)
 backend/ops/certs/*.pem
