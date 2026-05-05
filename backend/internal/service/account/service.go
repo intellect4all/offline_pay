@@ -7,6 +7,7 @@ package account
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -27,23 +28,21 @@ func New(pool *pgxpool.Pool) *Service {
 }
 
 // ResolvedAccount is the minimal envelope a sender needs to confirm a
-// transfer. MaskedName is a privacy-preserving placeholder; a production
-// implementation would pull the display name from the most recent KYC
-// submission.
+// transfer. MaskedName carries the full registered display name — the
+// "masked" wire field is a historical artefact kept to avoid churning
+// the OpenAPI schema and generated clients.
 type ResolvedAccount struct {
 	AccountNumber string `json:"account_number"`
 	MaskedName    string `json:"masked_name"`
 }
 
-// ResolveAccount returns a masked identity snapshot for the given 10-digit
-// account number. The users table has no display name yet; we return a
-// stable "Account ***{last4}" placeholder. The KYC table carries the real
-// name once Phase 2 KYC integration lands — substitute then.
+// ResolveAccount returns the registered owner's display name and the
+// canonical account number for the supplied 10-digit input.
 func (s *Service) ResolveAccount(ctx context.Context, accountNumber string) (ResolvedAccount, error) {
 	if err := domain.ValidateAccountNumber(accountNumber); err != nil {
 		return ResolvedAccount{}, err
 	}
-	exists, err := s.Repo.CheckAccountNumberExists(ctx, accountNumber)
+	owner, err := s.Repo.GetAccountOwner(ctx, accountNumber)
 	if err != nil {
 		if errors.Is(err, accountrepo.ErrNotFound) {
 			return ResolvedAccount{}, ErrNotFound
@@ -51,7 +50,7 @@ func (s *Service) ResolveAccount(ctx context.Context, accountNumber string) (Res
 		return ResolvedAccount{}, err
 	}
 	return ResolvedAccount{
-		AccountNumber: exists,
-		MaskedName:    "Account ***" + exists[6:10],
+		AccountNumber: owner.AccountNumber,
+		MaskedName:    strings.TrimSpace(owner.FirstName + " " + owner.LastName),
 	}, nil
 }
